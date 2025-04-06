@@ -1,23 +1,14 @@
 // import checkID from './middleware/checkID.js';
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const bodyParser = require('body-parser');
+import express from 'express';
+import fs from 'fs';
+import bodyParser from 'body-parser';
+import path from 'path';
+import { checkID } from './middleware/checkmiddleware.js'; 
+import { validateUserInput } from './middleware/checkmiddleware.js'; 
 const app = express();
 const port = 3001;
 
 app.use(bodyParser.json());
-
-// Middleware 
-function checkID(req, res, next) {
-    let id = parseInt(req.params.id);
-    if (isNaN(id) || id <= 0) {
-        return res.status(400).json({ message: 'Invalid ID' });
-    }
-    next();
-}
-
-
 app.use((req, res, next) => {
     console.log('Time:', new Date().toISOString());
     console.log('App-level middleware');
@@ -27,7 +18,18 @@ app.use((req, res, next) => {
 // Hàm đọc dữ liệu từ file JSON
 const readUsers = () => {
     try {
-        const data = fs.readFileSync(path.join(__dirname, 'users.json'), 'utf-8');
+        const data = fs.readFileSync(path.resolve('src/users.json'), 'utf-8', (err, data) => {
+            if (err) {
+                console.error("Error reading file:", err);
+                return;
+            }
+        })
+        console.log(data);
+        
+        if(!data) {
+            return [];
+        }
+    
         return JSON.parse(data);
     } catch (error) {
         return [];
@@ -36,7 +38,7 @@ const readUsers = () => {
 
 // Hàm ghi dữ liệu vào file JSON
 const writeUsers = (users) => {
-    fs.writeFileSync(path.join(__dirname, 'users.json'), JSON.stringify(users, null, 2), 'utf-8');
+    fs.writeFileSync(path.join('src/users.json'), JSON.stringify(users, null, 2), 'utf-8');
 };
 
 // Lấy danh sách người dùng
@@ -59,18 +61,9 @@ app.get('/user/:id', checkID, (req, res) => {
 });
 
 // Thêm người dùng
-app.post('/users', (req, res) => {
+app.post('/users', validateUserInput,(req, res) => {
     const users = readUsers();
     const { id, name, age } = req.body;
-
-    if (!id || !name || !age || isNaN(id) || isNaN(age) || id <= 0) {
-        return res.status(400).json({ error: "Invalid input data" });
-    }
-
-    if (users.some(user => user.id === id)) {
-        return res.status(409).json({ error: "User ID already exists" });
-    }
-
     const newUser = { id, name, age };
     users.push(newUser);
     writeUsers(users);
@@ -92,8 +85,7 @@ app.delete('/users/:id', checkID, (req, res) => {
     res.status(204).send(); 
 });
 
-// Sửa thông tin người dùng
-app.put('/users/:id', checkID, (req, res) => {
+app.put('/users/:id', validateUserInput, (req, res) => {
     let users = readUsers();
     const idUser = parseInt(req.params.id);
     const { name, age } = req.body;
@@ -123,7 +115,6 @@ app.put('/users/:id', checkID, (req, res) => {
 app.get('/user_sort/:choice', (req, res) => {
     let users = readUsers();
     const choice = req.params.choice;
-
     if (choice === "asc") {
         users.sort((a, b) => a.id - b.id);
     } else if (choice === "desc") {
